@@ -3,7 +3,10 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*' # Trigger only when a tag starting with 'v' is pushed, e.g., 'v1.0.0'
+      - 'v*'  # Trigger only when a tag starting with 'v' is pushed, e.g., 'v1.0.0'
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -16,7 +19,7 @@ jobs:
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: 7.0.x # Adjust according to your project's target framework
+          dotnet-version: 7.0.x  # Adjust according to your project's target framework
 
       - name: Restore Dependencies
         run: dotnet restore
@@ -24,19 +27,18 @@ jobs:
       - name: Build Solution
         run: dotnet build --configuration Release --no-restore
 
-      - name: Publish Project
-        run: dotnet publish -c Release -o ./publish
+      - name: Publish Single Executable
+        run: dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true -o ./publish
 
-      - name: Create Release Archive
+      - name: Rename Executable
         run: |
-          Compress-Archive -Path ./publish/* -DestinationPath ./release.zip
+          $exeName = Get-ChildItem ./publish/*.exe | Select-Object -ExpandProperty Name
+          Rename-Item -Path "./publish/$exeName" -NewName "app.exe"
 
       - name: Create GitHub Release
         uses: ncipollo/release-action@v1
         with:
-          artifacts: "./release.zip"
+          artifacts: "./publish/app.exe"
           token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref }}
           name: Release ${{ github.ref_name }}
-          body: |
-            Automated release for version ${{ github.ref_name }}
