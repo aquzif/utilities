@@ -35,7 +35,7 @@
             // button1
             // 
             button1.BackgroundImageLayout = ImageLayout.None;
-            button1.Location = new Point(12, 12);
+            button1.Location = new Point(30, 62);
             button1.Name = "button1";
             button1.Size = new Size(152, 23);
             button1.TabIndex = 0;
@@ -45,7 +45,7 @@
             // 
             // button2
             // 
-            button2.Location = new Point(12, 41);
+            button2.Location = new Point(30, 101);
             button2.Name = "button2";
             button2.Size = new Size(75, 23);
             button2.TabIndex = 1;

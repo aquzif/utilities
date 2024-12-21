@@ -1,14 +1,27 @@
 ﻿using System;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using Microsoft.Office.Interop.Excel;
+using Application = Microsoft.Office.Interop.Excel.Application;
+using Range = Microsoft.Office.Interop.Excel.Range;
 
 namespace UTILS
 {
+
+
+
     public static class DMFExcelToXML
     {
+
+        private static Form parentForm;
+
         public static async Task Run(Form parentForm)
         {
+
+            DMFExcelToXML.parentForm = parentForm;
+
             // Ask for entity name
             string entityName = Microsoft.VisualBasic.Interaction.InputBox("Enter the entity name", "Entity Name", "INVENTPRODUCTDEFAULTORDERSETTINGSENTITY");
 
@@ -42,7 +55,139 @@ namespace UTILS
             progressBar.Dock = DockStyle.Bottom;
             parentForm.Controls.Add(progressBar);
 
-            await Task.Run(() => ((Form1)parentForm).ProcessExcelToXml(entityName, path, saveDirectory, baseFileName, progressBar, partXml == DialogResult.Yes));
+            await Task.Run(() => DMFExcelToXML.ProcessExcelToXml(entityName, path, saveDirectory, baseFileName, progressBar, partXml == DialogResult.Yes));
+        }
+
+
+        private static void ProcessExcelToXml(string entityName, string path, string saveDirectory, string baseFileName, ProgressBar progressBar, bool splitXml)
+        {
+            Application xlApp = null;
+            Workbook xlWorkbook = null;
+            _Worksheet xlWorksheet = null;
+            Range xlRange = null;
+
+            try
+            {
+                // Open Excel file
+                xlApp = new Application();
+                xlWorkbook = xlApp.Workbooks.Open(path);
+                xlWorksheet = xlWorkbook.Sheets[1];
+                xlRange = xlWorksheet.UsedRange;
+
+                int rowCount = xlRange.Rows.Count;
+                int colCount = xlRange.Columns.Count;
+
+                // Ask which columns are numbers
+                List<int> numericColumns = new List<int>();
+                string numericColumnsInput = Microsoft.VisualBasic.Interaction.InputBox("Enter column numbers that contain numeric values, separated by commas", "Numeric Columns", "");
+                if (!string.IsNullOrEmpty(numericColumnsInput))
+                {
+                    foreach (var col in numericColumnsInput.Split(','))
+                    {
+                        if (int.TryParse(col.Trim(), out int colIndex))
+                        {
+                            numericColumns.Add(colIndex);
+                        }
+                    }
+                }
+
+                // Update progress bar maximum value
+                parentForm.Invoke((MethodInvoker)delegate
+                {
+                    progressBar.Maximum = rowCount - 1;
+                });
+
+                int fileCounter = 1;
+                int rowCounter = 0;
+                string xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Document>";
+
+                for (int i = 2; i <= rowCount; i++)
+                {
+                    bool isEmptyRow = true;
+                    for (int j = 1; j <= colCount; j++)
+                    {
+                        if (xlRange.Cells[i, j]?.Value2 != null)
+                        {
+                            isEmptyRow = false;
+                            break;
+                        }
+                    }
+
+                    if (isEmptyRow) continue;
+
+                    xml += "<" + entityName + ">";
+                    for (int j = 1; j <= colCount; j++)
+                    {
+                        string header = xlRange.Cells[1, j]?.Value2?.ToString();
+                        string value = xlRange.Cells[i, j]?.Value2?.ToString();
+
+                        if (numericColumns.Contains(j) && !string.IsNullOrEmpty(value))
+                        {
+                            value = value.Replace(",", ".");
+                        }
+
+                        if (!string.IsNullOrEmpty(header) && !string.IsNullOrEmpty(value))
+                        {
+                            xml += "<" + header + ">" + value + "</" + header + ">";
+                        }
+                    }
+                    xml += "</" + entityName + ">";
+
+                    rowCounter++;
+
+                    // Save XML file in parts of 1000 if splitXml is true
+                    if (splitXml && rowCounter >= 1000)
+                    {
+                        xml += "</Document>";
+                        string partFileName = Path.Combine(saveDirectory, $"{baseFileName}.part{fileCounter}.xml");
+                        File.WriteAllText(partFileName, xml);
+
+                        fileCounter++;
+                        rowCounter = 0;
+                        xml = "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<Document>";
+                    }
+
+                    // Update progress bar
+                    parentForm.Invoke((MethodInvoker)delegate
+                    {
+                        progressBar.PerformStep();
+                    });
+                }
+
+                // Save any remaining rows or the whole file if not splitting
+                if (rowCounter > 0 || !splitXml)
+                {
+                    xml += "</Document>";
+                    string partFileName = splitXml ? Path.Combine(saveDirectory, $"{baseFileName}.part{fileCounter}.xml") : Path.Combine(saveDirectory, $"{baseFileName}.xml");
+                    File.WriteAllText(partFileName, xml);
+                }
+            }
+            finally
+            {
+                // Release COM objects
+                if (xlWorkbook != null)
+                {
+                    xlWorkbook.Close(false);
+                    Marshal.ReleaseComObject(xlWorkbook);
+                }
+                if (xlWorksheet != null)
+                    Marshal.ReleaseComObject(xlWorksheet);
+                if (xlRange != null)
+                    Marshal.ReleaseComObject(xlRange);
+                if (xlApp != null)
+                {
+                    xlApp.Quit();
+                    Marshal.ReleaseComObject(xlApp);
+                }
+
+                // Hide progress bar when done
+                parentForm.Invoke((MethodInvoker)delegate
+                {
+                    parentForm.Controls.Remove(progressBar);
+                    MessageBox.Show("Processing complete!", "Done", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                });
+            }
         }
     }
+
 }

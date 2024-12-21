@@ -5,8 +5,7 @@ using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Office.Interop.Excel;
-using Application = Microsoft.Office.Interop.Excel.Application;
-using Range = Microsoft.Office.Interop.Excel.Range;
+
 
 namespace UTILS
 {
@@ -22,7 +21,9 @@ namespace UTILS
             await DMFExcelToXML.Run(this);
         }
 
-        private async void button2_Click(object sender, EventArgs e)
+        
+
+        private void button2_Click(object sender, EventArgs e)
         {
 
         }
